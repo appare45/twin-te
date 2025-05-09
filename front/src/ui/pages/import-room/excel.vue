@@ -36,7 +36,7 @@ const localStorage = LocalStorage.getInstance();
 const latestData = ref(localStorage.get("courseLocationInfo"));
 
 const dataLength = computed(() =>
-  latestData.value ? Object.keys(latestData.value.courseLocations).length : 0
+  latestData.value ? latestData.value.length : 0
 );
 
 /* upload */
@@ -95,7 +95,7 @@ const applyingCourses = computed(() =>
     .filter((course) => !course.room)
     .map((course) => ({
       ...course,
-      location: latestData.value?.courseLocations[course.code] ?? "",
+      location: latestData.value?.getLocation(course.code) ?? "",
     }))
     .filter((course) => course.location)
 );

@@ -38,6 +38,7 @@ export const getKdbClassroom = async (
 
   return {
     uploadAt: new Date(),
-    courseLocations: courseIdToClassroom,
+    getLocation: (id: string) => courseIdToClassroom[id],
+    length: records.length,
   };
 };
