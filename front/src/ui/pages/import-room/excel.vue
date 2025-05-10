@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { captureException, startSpan } from "@sentry/vue";
 import dayjs from "dayjs";
-import { computed, ref } from "vue";
+import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { isResultError } from "~/domain/error";
 import { removeDuplicateSchedules, sortSchedules } from "~/domain/schedule";
 import { getKdbClassroom } from "~/infrastructure/local/courseLocationExcel";
+import { DuckDBManager } from "~/infrastructure/local/duckdb";
 import { LocalStorage } from "~/infrastructure/localstorage";
 import { registeredCourseToDisplay } from "~/presentation/presenters/course";
 import Button from "~/ui/components/Button.vue";
@@ -16,6 +17,7 @@ import InputButtonFile from "~/ui/components/InputButtonFile.vue";
 import PageHeader from "~/ui/components/PageHeader.vue";
 import { useSetting, useToast } from "~/ui/store";
 import { timetableUseCase } from "~/usecases";
+import { ClassRoomWithDuckdb } from "~/usecases/classroom";
 
 const { displayToast } = useToast();
 
@@ -33,11 +35,10 @@ const steps = ["description", "upload", "apply"] as const;
 const currentStep = ref<typeof steps[number]>("description");
 
 const localStorage = LocalStorage.getInstance();
-const latestData = ref(localStorage.get("courseLocationInfo"));
+const latestData = ref();
+const dataLength = ref(0);
 
-const dataLength = computed(() =>
-  latestData.value ? latestData.value.length : 0
-);
+watch(latestData, async (v) => (dataLength.value = (await v?.length()) ?? 0));
 
 /* upload */
 const loadState = ref<"ready" | "loading" | "error" | "ok">("ready");
@@ -55,7 +56,11 @@ async function load(file: File) {
     },
     async (span) => {
       try {
-        const data = await getKdbClassroom(file);
+        // const data = await getKdbClassroom(file);
+        const dbm = await DuckDBManager.initialize();
+        const db = dbm.getDatabase();
+        const connection = await dbm.getConnection();
+        const data = await ClassRoomWithDuckdb.load(file, db, connection);
         latestData.value = data;
         localStorage.set("courseLocationInfo", data);
         loadState.value = "ok";
@@ -89,16 +94,26 @@ const registeredMap = new Map(registered.map((course) => [course.id, course]));
 
 if (isResultError(registered)) throw registered;
 
-const applyingCourses = computed(() =>
+const applyingCourses = ref(
   registered
     .map((course) => registeredCourseToDisplay(course, tags))
-    .filter((course) => !course.room)
     .map((course) => ({
       ...course,
-      location: latestData.value?.getLocation(course.code) ?? "",
+      location: "",
     }))
-    .filter((course) => course.location)
+    .filter((course) => !course.room)
 );
+
+watch(latestData, async (v) => {
+  applyingCourses.value = (
+    await Promise.all(
+      applyingCourses.value.map(async (course) => ({
+        ...course,
+        location: (await v?.getLocation(course.code)) ?? "",
+      }))
+    )
+  ).filter((course) => course.location);
+});
 
 const uploadLoading = ref(false);
 async function upload() {
