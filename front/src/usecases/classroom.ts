@@ -7,7 +7,6 @@ import { CourseLocationInfo } from "~/domain/courseLocation";
 
 export class ClassRoomWithDuckdb implements CourseLocationInfo {
   readonly uploadAt: Date;
-  private file: File;
   private db: AsyncDuckDB;
 
   private connection: AsyncDuckDBConnection;
@@ -15,24 +14,22 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
   private readonly range = "A5:S";
   private readonly tablename = "KDB";
 
-  private constructor(
-    file: File,
-    db: AsyncDuckDB,
-    connection: AsyncDuckDBConnection
-  ) {
-    this.file = file;
+  constructor(db: AsyncDuckDB, connection: AsyncDuckDBConnection) {
     this.db = db;
     this.connection = connection;
+    this.connection.query(
+      `CREATE TABLE IF NOT EXISTS ${this.tablename} (科目番号 VARCHAR NOT NULL, 教室 VARCHAR, データ更新日 TIMESTAMP, PRIMARY KEY (科目番号, データ更新日));`
+    );
     this.uploadAt = new Date();
   }
 
   private loadEXCELQuery = () =>
     this.connection.prepare(
       `
-        INSERT INTO ${this.tablename}
+        INSERT OR IGNORE INTO ${this.tablename}
         (
           SELECT 科目番号, 教室, データ更新日
-          FROM read_xlsx("${this.file.name}", range = "${this.range}", header = true)
+          FROM read_xlsx( ? , range = "${this.range}", header = true, stop_at_empty = true)
           WHERE 科目番号 is not NULL and 教室 is not NULL
         )
       `
@@ -60,28 +57,20 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
     return res.get(0)?.toJSON()["教室"] ?? "";
   };
 
-  static async load(
-    file: File,
-    db: AsyncDuckDB,
-    connection: AsyncDuckDBConnection
-  ) {
-    const P = new ClassRoomWithDuckdb(file, db, connection);
-    await P.db.registerFileHandle(
-      P.file.name,
-      P.file,
+  async load(file: File) {
+    await this.db.registerFileHandle(
+      file.name,
+      file,
       DuckDBDataProtocol.BROWSER_FILEREADER,
       true
     );
-    P.connection.query(
-      `CREATE TABLE ${P.tablename} (科目番号 VARCHAR NOT NULL, 教室 VARCHAR, データ更新日 TIMESTAMP, PRIMARY KEY (科目番号, データ更新日));`
-    );
-    const statement = await P.loadEXCELQuery();
-    statement.query();
-    const res = await P.connection.query(
-      `SELECT * from ${P.tablename} WHERE 教室 is not NULL`
+    const statement = await this.loadEXCELQuery();
+    statement.query(file.name);
+    const res = await this.connection.query(
+      `SELECT * from ${this.tablename} WHERE 教室 is not NULL`
     );
     console.log(JSON.parse(res.toArray()[0]));
     statement.close();
-    return P;
+    return this;
   }
 }

@@ -2,6 +2,7 @@ import {
   AsyncDuckDB,
   AsyncDuckDBConnection,
   ConsoleLogger,
+  DuckDBAccessMode,
   DuckDBBundle,
   DuckDBBundles,
   selectBundle,
@@ -47,6 +48,10 @@ export class DuckDBManager {
     const bundle = await selectBundle(MANUAL_BUNDLE);
     const dbm = new DuckDBManager(bundle);
     await dbm.db.instantiate(dbm.bundle.mainModule, dbm.bundle.pthreadWorker);
+    await dbm.db.open({
+      path: "opfs://duckdb-wasm-parquet.db",
+      accessMode: DuckDBAccessMode.READ_WRITE,
+    });
     await dbm.initExcel();
     return dbm;
   }
