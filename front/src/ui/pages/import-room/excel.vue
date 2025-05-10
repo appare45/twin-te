@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { captureException, startSpan } from "@sentry/vue";
 import dayjs from "dayjs";
+import { onMounted } from "vue";
 import { ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { isResultError } from "~/domain/error";
@@ -37,11 +38,18 @@ const currentStep = ref<typeof steps[number]>("description");
 const localStorage = LocalStorage.getInstance();
 const latestData = ref();
 const dataLength = ref(0);
+const dbm = ref();
+
+onMounted(async () => {
+  dbm.value = await DuckDBManager.initialize();
+  loadState.value = "ready";
+});
 
 watch(latestData, async (v) => (dataLength.value = (await v?.length()) ?? 0));
 
 /* upload */
-const loadState = ref<"ready" | "loading" | "error" | "ok">("ready");
+const loadState = ref<"ready" | "loading" | "error" | "ok">("loading");
+
 async function load(file: File) {
   loadState.value = "loading";
   startSpan(
@@ -56,10 +64,8 @@ async function load(file: File) {
     },
     async (span) => {
       try {
-        // const data = await getKdbClassroom(file);
-        const dbm = await DuckDBManager.initialize();
-        const db = dbm.getDatabase();
-        const connection = await dbm.getConnection();
+        const db = dbm.value.getDatabase();
+        const connection = await dbm.value.getConnection();
         const data = await ClassRoomWithDuckdb.load(file, db, connection);
         latestData.value = data;
         localStorage.set("courseLocationInfo", data);
@@ -209,7 +215,12 @@ async function upload() {
       </div>
       <div v-else-if="currentStep === 'upload'" class="page page-upload">
         <p class="upload__header">Excel ファイルを選択してください</p>
-        <InputButtonFile name="excel-file" accept=".xlsx" @change-file="load">
+        <InputButtonFile
+          v-if="loadState === 'ready'"
+          name="excel-file"
+          accept=".xlsx"
+          @change-file="load"
+        >
           アップロードする
         </InputButtonFile>
 
