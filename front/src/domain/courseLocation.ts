@@ -1,5 +1,5 @@
 export interface CourseLocationInfo {
-  uploadAt: Date;
+  uploadAt: () => Promise<Date>;
   getLocation: (id: string) => Promise<string>;
   length: () => Promise<number>;
 }

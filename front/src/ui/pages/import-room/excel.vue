@@ -34,6 +34,7 @@ const currentStep = ref<typeof steps[number]>("description");
 
 const latestData: Ref<ClassRoomWithDuckdb | undefined> = ref();
 const dataLength = ref(0);
+const uploadAt = ref<Date | undefined>();
 const dbm: Ref<DuckDBManager | undefined> = ref();
 
 onMounted(async () => {
@@ -48,7 +49,10 @@ onUnmounted(async () => {
   await dbm.value?.close();
 });
 
-watch(latestData, async (v) => (dataLength.value = (await v?.length()) ?? 0));
+watch(latestData, async (v) => {
+  dataLength.value = (await v?.length()) ?? 0;
+  uploadAt.value = await latestData.value?.uploadAt();
+});
 
 /* upload */
 const loadState = ref<"ready" | "loading" | "error" | "ok">("loading");
@@ -264,7 +268,7 @@ async function upload() {
           <div class="data-info__content">
             <div class="title">アップロード日</div>
             <div class="content">
-              {{ dayjs(latestData?.uploadAt).format(dayjsFormat) }}
+              {{ dayjs(uploadAt).format(dayjsFormat) }}
             </div>
           </div>
           <div class="data-info__content">

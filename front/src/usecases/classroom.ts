@@ -6,9 +6,7 @@ import {
 import { CourseLocationInfo } from "~/domain/courseLocation";
 
 export class ClassRoomWithDuckdb implements CourseLocationInfo {
-  readonly uploadAt: Date;
   private db: AsyncDuckDB;
-
   private connection: AsyncDuckDBConnection;
 
   private readonly range = "A5:S";
@@ -20,8 +18,18 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
     this.connection.query(
       `CREATE TABLE IF NOT EXISTS ${this.tablename} (科目番号 VARCHAR NOT NULL, 教室 VARCHAR, データ更新日 TIMESTAMP, PRIMARY KEY (科目番号, データ更新日));`
     );
-    this.uploadAt = new Date();
   }
+
+  uploadAt = async () =>
+    new Date(
+      (
+        await this.connection.query(`
+      SELECT MAX(データ更新日) AS latest FROM ${this.tablename}
+      `)
+      )
+        .toArray()[0]
+        .toJSON().latest
+    );
 
   private loadEXCELQuery = () =>
     this.connection.prepare(
@@ -65,9 +73,6 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
     );
     const statement = await this.loadEXCELQuery();
     statement.query(file.name);
-    const res = await this.connection.query(
-      `SELECT * from ${this.tablename} WHERE 教室 is not NULL`
-    );
     statement.close();
     this.db.dropFile(file.name);
     return this;

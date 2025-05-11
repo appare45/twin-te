@@ -37,7 +37,7 @@ export const getKdbClassroom = async (
   }, {} as { [key: string]: string });
 
   return {
-    uploadAt: new Date(),
+    uploadAt: () => Promise.resolve(new Date()),
     getLocation: (id: string) => Promise.resolve(courseIdToClassroom[id]),
     length: () => Promise.resolve(records.length),
   };
