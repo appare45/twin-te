@@ -53,7 +53,6 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
     const statement = await this.locationQuery();
     const res = await statement.query(id);
     statement.close();
-    console.log(res.get(0)?.toJSON());
     return res.get(0)?.toJSON()["教室"] ?? "";
   };
 
@@ -69,8 +68,8 @@ export class ClassRoomWithDuckdb implements CourseLocationInfo {
     const res = await this.connection.query(
       `SELECT * from ${this.tablename} WHERE 教室 is not NULL`
     );
-    console.log(JSON.parse(res.toArray()[0]));
     statement.close();
+    this.db.dropFile(file.name);
     return this;
   }
 }

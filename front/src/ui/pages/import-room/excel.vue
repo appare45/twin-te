@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { captureException, startSpan } from "@sentry/vue";
 import dayjs from "dayjs";
-import { onMounted } from "vue";
-import { ref, watch } from "vue";
+import { Ref, onUnmounted, ref, watch, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { isResultError } from "~/domain/error";
 import { removeDuplicateSchedules, sortSchedules } from "~/domain/schedule";
-import { getKdbClassroom } from "~/infrastructure/local/courseLocationExcel";
 import { DuckDBManager } from "~/infrastructure/local/duckdb";
-import { LocalStorage } from "~/infrastructure/localstorage";
 import { registeredCourseToDisplay } from "~/presentation/presenters/course";
 import Button from "~/ui/components/Button.vue";
 import CardAdd from "~/ui/components/CardAdd.vue";
@@ -35,14 +32,20 @@ function goBack() {
 const steps = ["description", "upload", "apply"] as const;
 const currentStep = ref<typeof steps[number]>("description");
 
-const localStorage = LocalStorage.getInstance();
-const latestData = ref();
+const latestData: Ref<ClassRoomWithDuckdb | undefined> = ref();
 const dataLength = ref(0);
-const dbm = ref();
+const dbm: Ref<DuckDBManager | undefined> = ref();
 
 onMounted(async () => {
   dbm.value = await DuckDBManager.initialize();
+  const db = dbm.value.getDatabase();
+  const connection = await dbm.value.getConnection();
+  latestData.value = new ClassRoomWithDuckdb(db, connection);
   loadState.value = "ready";
+});
+
+onUnmounted(async () => {
+  await dbm.value?.close();
 });
 
 watch(latestData, async (v) => (dataLength.value = (await v?.length()) ?? 0));
@@ -64,11 +67,7 @@ async function load(file: File) {
     },
     async (span) => {
       try {
-        const db = dbm.value.getDatabase();
-        const connection = await dbm.value.getConnection();
-        const data = await ClassRoomWithDuckdb.load(file, db, connection);
-        latestData.value = data;
-        localStorage.set("courseLocationInfo", data);
+        latestData.value = await latestData.value?.load(file);
         loadState.value = "ok";
         span?.setAttribute("excel.load.success", true);
       } catch (error) {
@@ -265,7 +264,7 @@ async function upload() {
           <div class="data-info__content">
             <div class="title">アップロード日</div>
             <div class="content">
-              {{ dayjs(latestData!.uploadAt).format(dayjsFormat) }}
+              {{ dayjs(latestData?.uploadAt).format(dayjsFormat) }}
             </div>
           </div>
           <div class="data-info__content">

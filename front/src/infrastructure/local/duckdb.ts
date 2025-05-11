@@ -56,6 +56,11 @@ export class DuckDBManager {
     return dbm;
   }
 
+  public async close(): Promise<void> {
+    await this.connection?.close();
+    await this.db.terminate();
+  }
+
   public getDatabase(): AsyncDuckDB {
     return this.db;
   }

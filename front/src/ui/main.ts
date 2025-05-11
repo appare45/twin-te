@@ -26,6 +26,8 @@ Sentry.init({
   replaysSessionSampleRate: 0.01,
   replaysOnErrorSampleRate: 1.0,
   logErrors: true,
+  environment: "local",
+  tracePropagationTargets: ["localhost"],
 });
 
 const head = createHead();
